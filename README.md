@@ -69,10 +69,9 @@
 - **Logger**: Configured structured logging with Zap.
 - **Database**: Set up PostgreSQL connection pooling with `pgxpool`.
 - **Repositories**: Implemented `UserRepository`, `ClientRepository`, `MatterRepository`, and `DocumentRepository`.
-- **Services**: Implemented `UserService` and `MatterService`.
+- **Services**: Implemented `UserService`, `ClientService`, `MatterService`, and `DocumentService`.
 - **Middleware**: Added authentication, RBAC, and request logging middleware.
 - **Next Steps**:
-  - Implement `ClientService` and `DocumentService`.
   - Set up WebSocket for real-time updates.
   - Integrate services with API endpoints.
 
