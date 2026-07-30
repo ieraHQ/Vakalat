@@ -68,10 +68,9 @@
 ### Phase 3 – Backend Framework (✅ In Progress)
 - **Logger**: Configured structured logging with Zap.
 - **Database**: Set up PostgreSQL connection pooling with `pgxpool`.
-- **Repositories**: Implemented `UserRepository` and `ClientRepository`.
+- **Repositories**: Implemented `UserRepository`, `ClientRepository`, `MatterRepository`, and `DocumentRepository`.
 - **Next Steps**:
-  - Implement `MatterRepository` and `DocumentRepository`.
-  - Add service layer for business logic.
+  - Add service layer for business logic (e.g., `UserService`, `MatterService`).
   - Implement authentication and RBAC middleware.
   - Set up WebSocket for real-time updates.
 
