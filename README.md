@@ -65,10 +65,15 @@
 - **Migrations**: Added `goose` migration system and SQL migrations for all tables.
 - **Seed Data**: Added sample data for testing (roles, users, clients).
 
-### Phase 3 – Backend Framework
-- Configure logger, database, repositories, and services.
-- Implement RBAC and middleware.
-- Set up WebSocket for real-time updates.
+### Phase 3 – Backend Framework (✅ In Progress)
+- **Logger**: Configured structured logging with Zap.
+- **Database**: Set up PostgreSQL connection pooling with `pgxpool`.
+- **Repositories**: Implemented `UserRepository` and `ClientRepository`.
+- **Next Steps**:
+  - Implement `MatterRepository` and `DocumentRepository`.
+  - Add service layer for business logic.
+  - Implement authentication and RBAC middleware.
+  - Set up WebSocket for real-time updates.
 
 ### Phase 3 – Backend Framework
 - Configure logger, database, repositories, and services.
