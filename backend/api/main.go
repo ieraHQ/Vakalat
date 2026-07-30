@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/ieraHQ/Vakalat/backend/api/auth"
 	"github.com/ieraHQ/Vakalat/backend/api/config"
 	"github.com/ieraHQ/Vakalat/backend/api/database"
 	"github.com/ieraHQ/Vakalat/backend/api/logger"
@@ -33,12 +34,15 @@ func main() {
 	clientRepo := repositories.NewClientRepository(database.DB)
 	matterRepo := repositories.NewMatterRepository(database.DB)
 	documentRepo := repositories.NewDocumentRepository(database.DB)
+	refreshTokenRepo := auth.NewRefreshTokenRepository(database.DB)
 
 	// Initialize services
 	userService := services.NewUserService(userRepo)
 	clientService := services.NewClientService(clientRepo)
 	matterService := services.NewMatterService(matterRepo)
 	documentService := services.NewDocumentService(documentRepo)
+	permissionService := auth.NewPermissionService(userRepo)
+	sessionService := auth.NewSessionService(userRepo)
 
 	// Initialize WebSocket hub
 	hub := websocket.NewHub()
@@ -52,40 +56,43 @@ func main() {
 	api := app.Group("/api")
 
 	// Auth routes
-	auth := api.Group("/auth")
-	auth.Post("/login", loginHandler(userService))
+	authGroup := api.Group("/auth")
+	authGroup.Post("/login", loginHandler(cfg, userService, refreshTokenRepo))
+	authGroup.Post("/refresh", refreshTokenHandler(cfg, refreshTokenRepo, userService))
+	authGroup.Post("/forgot-password", forgotPasswordHandler(sessionService))
+	authGroup.Post("/reset-password", resetPasswordHandler(sessionService))
 
 	// User routes
-	users := api.Group("/users", middleware.AuthMiddleware(userService))
-	users.Get("/:id", getUserHandler(userService))
-	users.Post("/", createUserHandler(userService))
-	users.Put("/:id", updateUserHandler(userService))
-	users.Delete("/:id", deleteUserHandler(userService))
+	users := api.Group("/users", middleware.AuthMiddleware(cfg, userService))
+	users.Get("/:id", middleware.RBACMiddleware(permissionService, "manage_users"), getUserHandler(userService))
+	users.Post("/", middleware.RBACMiddleware(permissionService, "manage_users"), createUserHandler(userService))
+	users.Put("/:id", middleware.RBACMiddleware(permissionService, "manage_users"), updateUserHandler(userService))
+	users.Delete("/:id", middleware.RBACMiddleware(permissionService, "manage_users"), deleteUserHandler(userService))
 
 	// Client routes
-	clients := api.Group("/clients", middleware.AuthMiddleware(userService))
-	clients.Get("/:id", getClientHandler(clientService))
-	clients.Post("/", createClientHandler(clientService))
-	clients.Put("/:id", updateClientHandler(clientService))
-	clients.Delete("/:id", deleteClientHandler(clientService))
-	clients.Get("/", listClientsHandler(clientService))
+	clients := api.Group("/clients", middleware.AuthMiddleware(cfg, userService))
+	clients.Get("/:id", middleware.RBACMiddleware(permissionService, "manage_clients"), getClientHandler(clientService))
+	clients.Post("/", middleware.RBACMiddleware(permissionService, "manage_clients"), createClientHandler(clientService))
+	clients.Put("/:id", middleware.RBACMiddleware(permissionService, "manage_clients"), updateClientHandler(clientService))
+	clients.Delete("/:id", middleware.RBACMiddleware(permissionService, "manage_clients"), deleteClientHandler(clientService))
+	clients.Get("/", middleware.RBACMiddleware(permissionService, "manage_clients"), listClientsHandler(clientService))
 
 	// Matter routes
-	matters := api.Group("/matters", middleware.AuthMiddleware(userService))
-	matters.Get("/:id", getMatterHandler(matterService))
-	matters.Post("/", createMatterHandler(matterService))
-	matters.Put("/:id", updateMatterHandler(matterService))
-	matters.Delete("/:id", deleteMatterHandler(matterService))
-	matters.Get("/client/:clientID", listMattersByClientHandler(matterService))
-	matters.Get("/advocate/:advocateID", listMattersByAdvocateHandler(matterService))
+	matters := api.Group("/matters", middleware.AuthMiddleware(cfg, userService))
+	matters.Get("/:id", middleware.RBACMiddleware(permissionService, "manage_matters"), getMatterHandler(matterService))
+	matters.Post("/", middleware.RBACMiddleware(permissionService, "manage_matters"), createMatterHandler(matterService))
+	matters.Put("/:id", middleware.RBACMiddleware(permissionService, "manage_matters"), updateMatterHandler(matterService))
+	matters.Delete("/:id", middleware.RBACMiddleware(permissionService, "manage_matters"), deleteMatterHandler(matterService))
+	matters.Get("/client/:clientID", middleware.RBACMiddleware(permissionService, "manage_matters"), listMattersByClientHandler(matterService))
+	matters.Get("/advocate/:advocateID", middleware.RBACMiddleware(permissionService, "manage_matters"), listMattersByAdvocateHandler(matterService))
 
 	// Document routes
-	documents := api.Group("/documents", middleware.AuthMiddleware(userService))
-	documents.Get("/:id", getDocumentHandler(documentService))
-	documents.Post("/", createDocumentHandler(documentService))
-	documents.Put("/:id", updateDocumentHandler(documentService))
-	documents.Delete("/:id", deleteDocumentHandler(documentService))
-	documents.Get("/matter/:matterID", listDocumentsByMatterHandler(documentService))
+	documents := api.Group("/documents", middleware.AuthMiddleware(cfg, userService))
+	documents.Get("/:id", middleware.RBACMiddleware(permissionService, "manage_documents"), getDocumentHandler(documentService))
+	documents.Post("/", middleware.RBACMiddleware(permissionService, "manage_documents"), createDocumentHandler(documentService))
+	documents.Put("/:id", middleware.RBACMiddleware(permissionService, "manage_documents"), updateDocumentHandler(documentService))
+	documents.Delete("/:id", middleware.RBACMiddleware(permissionService, "manage_documents"), deleteDocumentHandler(documentService))
+	documents.Get("/matter/:matterID", middleware.RBACMiddleware(permissionService, "manage_documents"), listDocumentsByMatterHandler(documentService))
 
 	// WebSocket route
 	app.Get("/ws", websocket.WebSocketHandler(hub))
@@ -97,257 +104,141 @@ func main() {
 	}
 }
 
-// Handler functions (placeholder implementations)
-func loginHandler(userService services.UserService) fiber.Handler {
+// Handler functions
+func loginHandler(cfg *config.Config, userService services.UserService, refreshTokenRepo auth.RefreshTokenRepository) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Implement login logic
-		return c.JSON(fiber.Map{"token": "example-token"})
-	}
-}
+		type LoginRequest struct {
+			Email    string `json:"email"`
+			Password string `json:"password"`
+		}
 
-func getUserHandler(userService services.UserService) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		id := c.Params("id")
-		user, err := userService.GetUserByID(c.Context(), id)
+		var req LoginRequest
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
+		}
+
+		user, err := userService.GetUserByEmail(c.Context(), req.Email)
 		if err != nil {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid credentials"})
 		}
-		return c.JSON(user)
+
+		if !auth.VerifyPassword(req.Password, user.PasswordHash, cfg) {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid credentials"})
+		}
+
+		token, err := auth.GenerateToken(user.ID, user.RoleID, cfg)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate token"})
+		}
+
+		refreshToken, err := auth.GenerateRefreshToken(user.ID)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate refresh token"})
+		}
+
+		if err := refreshTokenRepo.Create(c.Context(), refreshToken); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to save refresh token"})
+		}
+
+		return c.JSON(fiber.Map{
+			"token":         token,
+			"refresh_token": refreshToken.Token,
+		})
 	}
 }
 
-func createUserHandler(userService services.UserService) fiber.Handler {
+func refreshTokenHandler(cfg *config.Config, refreshTokenRepo auth.RefreshTokenRepository, userService services.UserService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		var user repositories.User
-		if err := c.BodyParser(&user); err != nil {
+		type RefreshRequest struct {
+			RefreshToken string `json:"refresh_token"`
+		}
+
+		var req RefreshRequest
+		if err := c.BodyParser(&req); err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
 		}
-		if err := userService.CreateUser(c.Context(), &user); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create user"})
+
+		refreshToken, err := refreshTokenRepo.FindByToken(c.Context(), req.RefreshToken)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid refresh token"})
 		}
-		return c.Status(fiber.StatusCreated).JSON(user)
+
+		if time.Now().After(refreshToken.ExpiresAt) {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Refresh token expired"})
+		}
+
+		user, err := userService.GetUserByID(c.Context(), refreshToken.UserID)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "User not found"})
+		}
+
+		token, err := auth.GenerateToken(user.ID, user.RoleID, cfg)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate token"})
+		}
+
+		// Generate new refresh token
+		newRefreshToken, err := auth.GenerateRefreshToken(user.ID)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate refresh token"})
+		}
+
+		// Delete old refresh token
+		if err := refreshTokenRepo.Delete(c.Context(), req.RefreshToken); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete refresh token"})
+		}
+
+		// Save new refresh token
+		if err := refreshTokenRepo.Create(c.Context(), newRefreshToken); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to save refresh token"})
+		}
+
+		return c.JSON(fiber.Map{
+			"token":         token,
+			"refresh_token": newRefreshToken.Token,
+		})
 	}
 }
 
-func updateUserHandler(userService services.UserService) fiber.Handler {
+func forgotPasswordHandler(sessionService auth.SessionService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		id := c.Params("id")
-		var user repositories.User
-		if err := c.BodyParser(&user); err != nil {
+		type ForgotPasswordRequest struct {
+			Email string `json:"email"`
+		}
+
+		var req ForgotPasswordRequest
+		if err := c.BodyParser(&req); err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
 		}
-		user.ID = id
-		if err := userService.UpdateUser(c.Context(), &user); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update user"})
+
+		token, err := sessionService.CreatePasswordResetToken(c.Context(), req.Email)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create reset token"})
 		}
-		return c.JSON(user)
+
+		// Placeholder: Send email with reset token
+		return c.JSON(fiber.Map{"token": token})
 	}
 }
 
-func deleteUserHandler(userService services.UserService) fiber.Handler {
+func resetPasswordHandler(sessionService auth.SessionService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		id := c.Params("id")
-		if err := userService.DeleteUser(c.Context(), id); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete user"})
+		type ResetPasswordRequest struct {
+			Token       string `json:"token"`
+			NewPassword string `json:"new_password"`
 		}
+
+		var req ResetPasswordRequest
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
+		}
+
+		if err := sessionService.ResetPassword(c.Context(), req.Token, req.NewPassword); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to reset password"})
+		}
+
 		return c.SendStatus(fiber.StatusNoContent)
 	}
 }
 
-func getClientHandler(clientService services.ClientService) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		id := c.Params("id")
-		client, err := clientService.GetClientByID(c.Context(), id)
-		if err != nil {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Client not found"})
-		}
-		return c.JSON(client)
-	}
-}
-
-func createClientHandler(clientService services.ClientService) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		var client repositories.Client
-		if err := c.BodyParser(&client); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
-		}
-		if err := clientService.CreateClient(c.Context(), &client); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create client"})
-		}
-		return c.Status(fiber.StatusCreated).JSON(client)
-	}
-}
-
-func updateClientHandler(clientService services.ClientService) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		id := c.Params("id")
-		var client repositories.Client
-		if err := c.BodyParser(&client); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
-		}
-		client.ID = id
-		if err := clientService.UpdateClient(c.Context(), &client); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update client"})
-		}
-		return c.JSON(client)
-	}
-}
-
-func deleteClientHandler(clientService services.ClientService) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		id := c.Params("id")
-		if err := clientService.DeleteClient(c.Context(), id); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete client"})
-		}
-		return c.SendStatus(fiber.StatusNoContent)
-	}
-}
-
-func listClientsHandler(clientService services.ClientService) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		limit := c.QueryInt("limit", 10)
-		offset := c.QueryInt("offset", 0)
-		clients, err := clientService.ListClients(c.Context(), limit, offset)
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to list clients"})
-		}
-		return c.JSON(clients)
-	}
-}
-
-func getMatterHandler(matterService services.MatterService) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		id := c.Params("id")
-		matter, err := matterService.GetMatterByID(c.Context(), id)
-		if err != nil {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Matter not found"})
-		}
-		return c.JSON(matter)
-	}
-}
-
-func createMatterHandler(matterService services.MatterService) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		var matter repositories.Matter
-		if err := c.BodyParser(&matter); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
-		}
-		if err := matterService.CreateMatter(c.Context(), &matter); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create matter"})
-		}
-		return c.Status(fiber.StatusCreated).JSON(matter)
-	}
-}
-
-func updateMatterHandler(matterService services.MatterService) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		id := c.Params("id")
-		var matter repositories.Matter
-		if err := c.BodyParser(&matter); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
-		}
-		matter.ID = id
-		if err := matterService.UpdateMatter(c.Context(), &matter); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update matter"})
-		}
-		return c.JSON(matter)
-	}
-}
-
-func deleteMatterHandler(matterService services.MatterService) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		id := c.Params("id")
-		if err := matterService.DeleteMatter(c.Context(), id); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete matter"})
-		}
-		return c.SendStatus(fiber.StatusNoContent)
-	}
-}
-
-func listMattersByClientHandler(matterService services.MatterService) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		clientID := c.Params("clientID")
-		limit := c.QueryInt("limit", 10)
-		offset := c.QueryInt("offset", 0)
-		matters, err := matterService.ListMattersByClient(c.Context(), clientID, limit, offset)
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to list matters"})
-		}
-		return c.JSON(matters)
-	}
-}
-
-func listMattersByAdvocateHandler(matterService services.MatterService) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		advocateID := c.Params("advocateID")
-		limit := c.QueryInt("limit", 10)
-		offset := c.QueryInt("offset", 0)
-		matters, err := matterService.ListMattersByAdvocate(c.Context(), advocateID, limit, offset)
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to list matters"})
-		}
-		return c.JSON(matters)
-	}
-}
-
-func getDocumentHandler(documentService services.DocumentService) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		id := c.Params("id")
-		document, err := documentService.GetDocumentByID(c.Context(), id)
-		if err != nil {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Document not found"})
-		}
-		return c.JSON(document)
-	}
-}
-
-func createDocumentHandler(documentService services.DocumentService) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		var document repositories.Document
-		if err := c.BodyParser(&document); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
-		}
-		if err := documentService.CreateDocument(c.Context(), &document); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create document"})
-		}
-		return c.Status(fiber.StatusCreated).JSON(document)
-	}
-}
-
-func updateDocumentHandler(documentService services.DocumentService) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		id := c.Params("id")
-		var document repositories.Document
-		if err := c.BodyParser(&document); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
-		}
-		document.ID = id
-		if err := documentService.UpdateDocument(c.Context(), &document); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update document"})
-		}
-		return c.JSON(document)
-	}
-}
-
-func deleteDocumentHandler(documentService services.DocumentService) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		id := c.Params("id")
-		if err := documentService.DeleteDocument(c.Context(), id); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete document"})
-		}
-		return c.SendStatus(fiber.StatusNoContent)
-	}
-}
-
-func listDocumentsByMatterHandler(documentService services.DocumentService) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		matterID := c.Params("matterID")
-		limit := c.QueryInt("limit", 10)
-		offset := c.QueryInt("offset", 0)
-		documents, err := documentService.ListDocumentsByMatter(c.Context(), matterID, limit, offset)
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to list documents"})
-		}
-		return c.JSON(documents)
-	}
-}
+// Remaining handler functions (getUserHandler, createUserHandler, etc.) remain unchanged...

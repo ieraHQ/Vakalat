@@ -1,17 +1,18 @@
 package middleware
 
 import (
-	"context"
 	"net/http"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/ieraHQ/Vakalat/backend/api/auth"
+	"github.com/ieraHQ/Vakalat/backend/api/config"
 	"github.com/ieraHQ/Vakalat/backend/api/logger"
 	"github.com/ieraHQ/Vakalat/backend/api/services"
 )
 
 // AuthMiddleware validates JWT tokens and attaches the user to the context.
-func AuthMiddleware(userService services.UserService) fiber.Handler {
+func AuthMiddleware(cfg *config.Config, userService services.UserService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		authHeader := c.Get("Authorization")
 		if authHeader == "" {
@@ -23,10 +24,14 @@ func AuthMiddleware(userService services.UserService) fiber.Handler {
 			return c.Status(http.StatusUnauthorized).JSON(fiber.Map{"error": "Bearer token missing"})
 		}
 
-		// Validate token (placeholder for JWT validation)
-		user, err := userService.GetUserByID(c.Context(), token) // Simplified for example
+		claims, err := auth.ValidateToken(token, cfg)
 		if err != nil {
 			return c.Status(http.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid token"})
+		}
+
+		user, err := userService.GetUserByID(c.Context(), claims.UserID)
+		if err != nil {
+			return c.Status(http.StatusUnauthorized).JSON(fiber.Map{"error": "User not found"})
 		}
 
 		// Attach user to context
@@ -36,15 +41,19 @@ func AuthMiddleware(userService services.UserService) fiber.Handler {
 }
 
 // RBACMiddleware checks if the user has the required permission.
-func RBACMiddleware(permission string) fiber.Handler {
+func RBACMiddleware(permissionService auth.PermissionService, permission string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		user, ok := c.Locals("user").(*services.User)
 		if !ok {
 			return c.Status(http.StatusUnauthorized).JSON(fiber.Map{"error": "User not authenticated"})
 		}
 
-		// Check permission (placeholder for RBAC logic)
-		if user.Role != "admin" { // Simplified for example
+		hasPermission, err := permissionService.HasPermission(c.Context(), user.ID, permission)
+		if err != nil {
+			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to check permission"})
+		}
+
+		if !hasPermission {
 			return c.Status(http.StatusForbidden).JSON(fiber.Map{"error": "Permission denied"})
 		}
 
