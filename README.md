@@ -74,10 +74,17 @@
 - **WebSocket**: Set up real-time updates for hearings, tasks, and notifications.
 - **API Endpoints**: Integrated services with Fiber routes for users, clients, matters, and documents.
 
-### Phase 4 – Authentication & RBAC
-- Implement JWT and refresh tokens.
-- Set up role-based permissions.
-- Add session management and password reset.
+### Phase 4 – Authentication & RBAC (✅ Complete)
+- **JWT Authentication**: Secure API access with JWT tokens.
+- **Refresh Tokens**: Support long-lived sessions.
+- **Password Hashing**: Use Argon2id for secure password storage.
+- **Role-Based Permissions**: Fine-grained access control for users and roles.
+- **Session Management**: Password reset and MFA readiness.
+
+### Phase 5 – Document Engine
+- Implement document upload, storage, and metadata.
+- Add OCR queue for text extraction.
+- Support versioning and digital signatures.
 
 ### Phase 3 – Backend Framework
 - Configure logger, database, repositories, and services.
