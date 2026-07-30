@@ -41,28 +41,47 @@
 - Documents, Evidence, Orders, Billing, Reports
 - AI Assistant, OCR, Search, Notifications
 
-## Getting Started
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/ieraHQ/Vakalat.git
-   cd Vakalat
-   ```
-2. Set up the backend:
-   ```bash
-   cd backend/api
-   go mod init github.com/ieraHQ/Vakalat/backend/api
-   go mod tidy
-   ```
-3. Set up the frontend:
-   ```bash
-   cd ../../apps/web
-   npm install
-   ```
-4. Set up the database:
-   ```bash
-   cd ../../database/migrations
-   # Run migrations (TBD)
-   ```
+## Milestones
+
+### Phase 1 – Foundation & Architecture (✅ Complete)
+- **Monorepo Structure**: Finalized directory layout for `/apps`, `/backend`, `/packages`, `/database`, and `/docs`.
+- **Makefile**: Added common tasks (`make build`, `make test`, `make lint`).
+- **Go Workspace**: Configured `go.work` for multi-module development and `golangci-lint` for linting.
+- **Next.js**: Configured `eslint`, `prettier`, and `typescript` for strict mode.
+- **Go Backend**: Added `viper` for environment variables and `app.env` for configuration.
+
+### Phase 2 – Database
+- Design complete schema (60–90 tables).
+- Set up PostgreSQL with `pgvector`, `pg_trgm`, and `uuid-ossp`.
+- Add migrations and seed data.
+
+### Phase 3 – Backend Framework
+- Configure logger, database, repositories, and services.
+- Implement RBAC and middleware.
+
+### Phase 4 – Authentication
+- JWT + refresh tokens.
+- Session management and password reset.
+
+### Phase 5 – Document Engine
+- Upload, storage, metadata, and versioning.
+- OCR queue and digital signatures.
+
+### Phase 6 – Matter Engine
+- API endpoints for matters, hearings, and timeline.
+- Frontend UI for matter screen.
+
+### Phase 7 – Search
+- PostgreSQL full-text search + pgvector.
+- Hybrid search (keyword + semantic).
+
+### Phase 8 – AI Workspace
+- Local LLM integration (Ollama/LM Studio).
+- Summarization, drafting, and research.
+
+### Phase 9 – Deployment
+- Docker and native deployment.
+- Cloud and high availability.
 
 ## Documentation
 - [Architecture](./docs/architecture.md)
