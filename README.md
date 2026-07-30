@@ -81,10 +81,13 @@
 - **Role-Based Permissions**: Fine-grained access control for users and roles.
 - **Session Management**: Password reset and MFA readiness.
 
-### Phase 5 – Document Engine
-- Implement document upload, storage, and metadata.
-- Add OCR queue for text extraction.
-- Support versioning and digital signatures.
+### Phase 5 – Document Engine (✅ In Progress)
+- **File Upload**: Let lawyers upload PDFs, Word docs, and other files.
+- **Local Storage**: Store files in `/storage/documents`.
+- **Next Steps**:
+  - Add OCR to read text inside documents (English + Hindi).
+  - Support document versioning (like saving different drafts).
+  - Add digital signatures to verify documents.
 
 ### Phase 3 – Backend Framework
 - Configure logger, database, repositories, and services.
