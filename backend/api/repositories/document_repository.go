@@ -5,15 +5,25 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// DocumentRepository defines the interface for document operations.
-type DocumentRepository interface {
-	Create(ctx context.Context, document *Document) error
-	FindByID(ctx context.Context, id string) (*Document, error)
-	Update(ctx context.Context, document *Document) error
-	Delete(ctx context.Context, id string) error
-	ListByMatter(ctx context.Context, matterID string, limit, offset int) ([]*Document, error)
-	UpdateOCRStatus(ctx context.Context, id string, status string) error
-	UpdateOCRText(ctx context.Context, id string, text string) error
+// ListByOCRStatus retrieves a list of documents by OCR status.
+func (r *documentRepository) ListByOCRStatus(ctx context.Context, status string) ([]*Document, error) {
+	query := `SELECT id, matter_id, name, path, mime_type, size, hash, ocr_status, ocr_text, created_at, updated_at FROM documents WHERE ocr_status = $1 AND deleted_at IS NULL`
+	rows, err := r.db.Query(ctx, query, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var documents []*Document
+	for rows.Next() {
+		var document Document
+		if err := rows.Scan(&document.ID, &document.MatterID, &document.Name, &document.Path, &document.MimeType, &document.Size, &document.Hash, &document.OCRStatus, &document.OCRText, &document.CreatedAt, &document.UpdatedAt); err != nil {
+			return nil, err
+		}
+		documents = append(documents, &document)
+	}
+
+	return documents, nil
 }
 
 // Document represents a document in the system.
@@ -84,7 +94,7 @@ func (r *documentRepository) Delete(ctx context.Context, id string) error {
 }
 
 // ListByMatter retrieves a list of documents for a matter with pagination.
-func (r *documentRepository) ListByMatter(ctx context.Context, matterID string, limit, offset int) ([]*Document, error) {
+func (r *documentRepository) ListByOCRStatus(ctx context.Context, status string) ([]*Document, error) {
 	query := `SELECT id, matter_id, name, path, mime_type, size, hash, ocr_status, ocr_text, created_at, updated_at FROM documents WHERE matter_id = $1 AND deleted_at IS NULL LIMIT $2 OFFSET $3`
 	rows, err := r.db.Query(ctx, query, matterID, limit, offset)
 	if err != nil {

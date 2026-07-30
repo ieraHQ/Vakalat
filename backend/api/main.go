@@ -1,6 +1,12 @@
 package main
 
 import (
+	"context"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/ieraHQ/Vakalat/backend/api/auth"
 	"github.com/ieraHQ/Vakalat/backend/api/config"
@@ -8,10 +14,13 @@ import (
 	"github.com/ieraHQ/Vakalat/backend/api/handlers"
 	"github.com/ieraHQ/Vakalat/backend/api/logger"
 	"github.com/ieraHQ/Vakalat/backend/api/middleware"
+	"github.com/ieraHQ/Vakalat/backend/api/ocr"
 	"github.com/ieraHQ/Vakalat/backend/api/repositories"
 	"github.com/ieraHQ/Vakalat/backend/api/services"
 	"github.com/ieraHQ/Vakalat/backend/api/storage"
+	"github.com/ieraHQ/Vakalat/backend/api/worker"
 	"github.com/ieraHQ/Vakalat/backend/api/websocket"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -31,8 +40,14 @@ func main() {
 	}
 	defer database.CloseDB()
 
-	// Initialize storage
-storage := storage.NewLocalStorage("./storage")
+	// Initialize OCR service
+ocrService := ocr.NewOCRService(true, true)
+
+// Initialize OCR worker
+ocrWorker := worker.NewOCRWorker(documentRepo, documentService, ocrService, 30*time.Second)
+ctx, cancel := context.WithCancel(context.Background())
+go ocrWorker.Start(ctx)
+defer cancel()
 
 // Initialize repositories
 userRepo := repositories.NewUserRepository(database.DB)
