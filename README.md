@@ -84,9 +84,10 @@
 ### Phase 5 – Document Engine (✅ In Progress)
 - **File Upload**: Let lawyers upload PDFs, Word docs, and other files.
 - **Local Storage**: Store files in `/storage/documents`.
+- **OCR (Robot’s Eyes)**: Read text inside documents (English + Hindi) using OCRmyPDF, PaddleOCR, and Tesseract.
+- **Background Worker**: Process OCR jobs in the background.
 - **Next Steps**:
-  - Add OCR to read text inside documents (English + Hindi).
-  - Support document versioning (like saving different drafts).
+  - Add document versioning (like saving different drafts).
   - Add digital signatures to verify documents.
 
 ### Phase 3 – Backend Framework
