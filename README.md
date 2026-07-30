@@ -62,6 +62,8 @@
   - **AI & Search**: `ai_sessions`, `ai_summaries`, `search_index`.
   - **Audit & Compliance**: `audit_logs`, `backup_logs`.
 - **Indexes**: Added indexes for performance-critical columns (e.g., `matter_id`, `client_id`).
+- **Migrations**: Added `goose` migration system and SQL migrations for all tables.
+- **Seed Data**: Added sample data for testing (roles, users, clients).
 
 ### Phase 3 – Backend Framework
 - Configure logger, database, repositories, and services.
