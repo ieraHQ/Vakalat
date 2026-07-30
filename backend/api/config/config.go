@@ -2,6 +2,8 @@ package config
 
 import (
 	"log"
+	"os"
+
 	"github.com/spf13/viper"
 )
 
@@ -38,13 +40,28 @@ func LoadConfig(path string) (*Config, error) {
 	viper.SetConfigType("env")
 	viper.AutomaticEnv()
 
+	// Set default values
+	viper.SetDefault("JWT_SECRET", os.Getenv("JWT_SECRET"))
+	viper.SetDefault("JWT_EXPIRATION_HOURS", 24)
+
 	if err := viper.ReadInConfig(); err != nil {
-		return nil, err
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			return nil, err
+		}
 	}
 
 	var config Config
 	if err := viper.Unmarshal(&config); err != nil {
 		return nil, err
+	}
+
+	// Override with environment variables
+	if jwtSecret := os.Getenv("JWT_SECRET"); jwtSecret != "" {
+		config.JWT.Secret = jwtSecret
+	}
+
+	if config.JWT.Secret == "" {
+		log.Fatal("JWT_SECRET environment variable is required")
 	}
 
 	return &config, nil

@@ -5,10 +5,12 @@ import (
 	"github.com/ieraHQ/Vakalat/backend/api/auth"
 	"github.com/ieraHQ/Vakalat/backend/api/config"
 	"github.com/ieraHQ/Vakalat/backend/api/database"
+	"github.com/ieraHQ/Vakalat/backend/api/handlers"
 	"github.com/ieraHQ/Vakalat/backend/api/logger"
 	"github.com/ieraHQ/Vakalat/backend/api/middleware"
 	"github.com/ieraHQ/Vakalat/backend/api/repositories"
 	"github.com/ieraHQ/Vakalat/backend/api/services"
+	"github.com/ieraHQ/Vakalat/backend/api/storage"
 	"github.com/ieraHQ/Vakalat/backend/api/websocket"
 )
 
@@ -29,20 +31,23 @@ func main() {
 	}
 	defer database.CloseDB()
 
-	// Initialize repositories
-	userRepo := repositories.NewUserRepository(database.DB)
-	clientRepo := repositories.NewClientRepository(database.DB)
-	matterRepo := repositories.NewMatterRepository(database.DB)
-	documentRepo := repositories.NewDocumentRepository(database.DB)
-	refreshTokenRepo := auth.NewRefreshTokenRepository(database.DB)
+	// Initialize storage
+storage := storage.NewLocalStorage("./storage")
 
-	// Initialize services
-	userService := services.NewUserService(userRepo)
-	clientService := services.NewClientService(clientRepo)
-	matterService := services.NewMatterService(matterRepo)
-	documentService := services.NewDocumentService(documentRepo)
-	permissionService := auth.NewPermissionService(userRepo)
-	sessionService := auth.NewSessionService(userRepo)
+// Initialize repositories
+userRepo := repositories.NewUserRepository(database.DB)
+clientRepo := repositories.NewClientRepository(database.DB)
+matterRepo := repositories.NewMatterRepository(database.DB)
+documentRepo := repositories.NewDocumentRepository(database.DB)
+refreshTokenRepo := auth.NewRefreshTokenRepository(database.DB)
+
+// Initialize services
+userService := services.NewUserService(userRepo)
+clientService := services.NewClientService(clientRepo)
+matterService := services.NewMatterService(matterRepo)
+documentService := services.NewDocumentService(documentRepo, storage)
+permissionService := auth.NewPermissionService(userRepo)
+sessionService := auth.NewSessionService(userRepo)
 
 	// Initialize WebSocket hub
 	hub := websocket.NewHub()

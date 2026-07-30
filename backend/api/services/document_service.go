@@ -2,13 +2,17 @@ package services
 
 import (
 	"context"
+	"mime/multipart"
+	"time"
+
 	"github.com/ieraHQ/Vakalat/backend/api/repositories"
+	"github.com/ieraHQ/Vakalat/backend/api/storage"
 	"github.com/google/uuid"
 )
 
 // DocumentService defines the interface for document operations.
 type DocumentService interface {
-	CreateDocument(ctx context.Context, document *repositories.Document) error
+	CreateDocument(ctx context.Context, matterID string, file *multipart.FileHeader) (*repositories.Document, error)
 	GetDocumentByID(ctx context.Context, id string) (*repositories.Document, error)
 	UpdateDocument(ctx context.Context, document *repositories.Document) error
 	DeleteDocument(ctx context.Context, id string) error
@@ -20,17 +24,39 @@ type DocumentService interface {
 // documentService implements DocumentService.
 type documentService struct {
 	documentRepo repositories.DocumentRepository
+	storage     storage.Storage
 }
 
 // NewDocumentService creates a new DocumentService.
-func NewDocumentService(documentRepo repositories.DocumentRepository) DocumentService {
-	return &documentService{documentRepo: documentRepo}
+func NewDocumentService(documentRepo repositories.DocumentRepository, storage storage.Storage) DocumentService {
+	return &documentService{documentRepo: documentRepo, storage: storage}
 }
 
-// CreateDocument creates a new document.
-func (s *documentService) CreateDocument(ctx context.Context, document *repositories.Document) error {
-	document.ID = uuid.New().String()
-	return s.documentRepo.Create(ctx, document)
+// CreateDocument creates a new document and uploads the file.
+func (s *documentService) CreateDocument(ctx context.Context, matterID string, file *multipart.FileHeader) (*repositories.Document, error) {
+	// Upload file
+	filePath, err := s.storage.UploadFile(ctx, file, matterID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create document record
+	document := &repositories.Document{
+		ID:        uuid.New().String(),
+		MatterID:  matterID,
+		Name:      file.Filename,
+		Path:      filePath,
+		MimeType:  file.Header.Get("Content-Type"),
+		Size:      file.Size,
+		OCRStatus: "pending",
+		CreatedAt: time.Now().Format(time.RFC3339),
+	}
+
+	if err := s.documentRepo.Create(ctx, document); err != nil {
+		return nil, err
+	}
+
+	return document, nil
 }
 
 // GetDocumentByID retrieves a document by ID.
@@ -43,8 +69,17 @@ func (s *documentService) UpdateDocument(ctx context.Context, document *reposito
 	return s.documentRepo.Update(ctx, document)
 }
 
-// DeleteDocument soft-deletes a document.
+// DeleteDocument soft-deletes a document and removes the file.
 func (s *documentService) DeleteDocument(ctx context.Context, id string) error {
+	document, err := s.documentRepo.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if err := s.storage.DeleteFile(ctx, document.Path); err != nil {
+		return err
+	}
+
 	return s.documentRepo.Delete(ctx, id)
 }
 
