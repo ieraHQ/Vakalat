@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/ieraHQ/Vakalat/backend/api/repositories"
 	"github.com/ieraHQ/Vakalat/backend/api/services"
 )
 

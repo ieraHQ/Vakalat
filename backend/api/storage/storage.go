@@ -6,10 +6,10 @@ import (
 	"mime/multipart"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/ieraHQ/Vakalat/backend/api/logger"
+	"go.uber.org/zap"
 )
 
 // Storage defines the interface for file storage operations.
@@ -43,7 +43,7 @@ func (s *LocalStorage) UploadFile(ctx context.Context, file *multipart.FileHeade
 	}
 
 	// Open the uploaded file
- src, err := file.Open()
+	src, err := file.Open()
 	if err != nil {
 		return "", err
 	}

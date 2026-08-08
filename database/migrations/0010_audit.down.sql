@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS backup_logs;
+DROP TABLE IF EXISTS audit_logs;

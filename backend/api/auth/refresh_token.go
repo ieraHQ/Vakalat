@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/ieraHQ/Vakalat/backend/api/repositories"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // RefreshTokenRepository defines the interface for refresh token operations.
@@ -24,11 +24,11 @@ type RefreshToken struct {
 
 // refreshTokenRepository implements RefreshTokenRepository.
 type refreshTokenRepository struct {
-	db repositories.DB
+	db *pgxpool.Pool
 }
 
 // NewRefreshTokenRepository creates a new RefreshTokenRepository.
-func NewRefreshTokenRepository(db repositories.DB) RefreshTokenRepository {
+func NewRefreshTokenRepository(db *pgxpool.Pool) RefreshTokenRepository {
 	return &refreshTokenRepository{db: db}
 }
 

@@ -8,7 +8,9 @@ import (
 	"github.com/ieraHQ/Vakalat/backend/api/auth"
 	"github.com/ieraHQ/Vakalat/backend/api/config"
 	"github.com/ieraHQ/Vakalat/backend/api/logger"
+	"github.com/ieraHQ/Vakalat/backend/api/repositories"
 	"github.com/ieraHQ/Vakalat/backend/api/services"
+	"go.uber.org/zap"
 )
 
 // AuthMiddleware validates JWT tokens and attaches the user to the context.
@@ -43,7 +45,7 @@ func AuthMiddleware(cfg *config.Config, userService services.UserService) fiber.
 // RBACMiddleware checks if the user has the required permission.
 func RBACMiddleware(permissionService auth.PermissionService, permission string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		user, ok := c.Locals("user").(*services.User)
+		user, ok := c.Locals("user").(*repositories.User)
 		if !ok {
 			return c.Status(http.StatusUnauthorized).JSON(fiber.Map{"error": "User not authenticated"})
 		}

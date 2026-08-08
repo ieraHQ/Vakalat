@@ -1,0 +1,9 @@
+DROP INDEX IF EXISTS idx_embeddings_embedding;
+DROP INDEX IF EXISTS idx_embeddings_document_id;
+DROP INDEX IF EXISTS idx_search_index_entity;
+DROP INDEX IF EXISTS idx_invoices_matter_id;
+DROP INDEX IF EXISTS idx_tasks_matter_id;
+DROP INDEX IF EXISTS idx_documents_matter_id;
+DROP INDEX IF EXISTS idx_hearings_matter_id;
+DROP INDEX IF EXISTS idx_matters_court_id;
+DROP INDEX IF EXISTS idx_matters_client_id;

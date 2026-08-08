@@ -15,16 +15,19 @@ type ClientRepository interface {
 }
 
 // Client represents a client in the system.
+// Address, PAN, GSTIN, and Notes are nullable columns (the seed data and any
+// client created without them leaves them NULL) — *string, not string, or
+// pgx fails every read with "cannot scan NULL into *string".
 type Client struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Type    string `json:"type"`
-	Email   string `json:"email"`
-	Phone   string `json:"phone"`
-	Address string `json:"address"`
-	PAN     string `json:"pan"`
-	GSTIN   string `json:"gstin"`
-	Notes   string `json:"notes"`
+	ID      string  `json:"id"`
+	Name    string  `json:"name" validate:"required"`
+	Type    string  `json:"type" validate:"required,oneof=individual organization"`
+	Email   string  `json:"email" validate:"omitempty,email"`
+	Phone   string  `json:"phone"`
+	Address *string `json:"address"`
+	PAN     *string `json:"pan"`
+	GSTIN   *string `json:"gstin"`
+	Notes   *string `json:"notes"`
 }
 
 // clientRepository implements ClientRepository.

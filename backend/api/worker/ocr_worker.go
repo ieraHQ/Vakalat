@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ieraHQ/Vakalat/backend/api/ai"
 	"github.com/ieraHQ/Vakalat/backend/api/logger"
 	"github.com/ieraHQ/Vakalat/backend/api/ocr"
 	"github.com/ieraHQ/Vakalat/backend/api/repositories"
@@ -13,23 +14,31 @@ import (
 
 // OCRWorker processes OCR jobs in the background.
 type OCRWorker struct {
-	documentRepo repositories.DocumentRepository
+	documentRepo    repositories.DocumentRepository
 	documentService services.DocumentService
-	ocrService ocr.OCRService
-	interval time.Duration
+	ocrService      ocr.OCRService
+	searchService   services.SearchService
+	embedder        ai.LLMClient
+	interval        time.Duration
 }
 
-// NewOCRWorker creates a new OCRWorker.
+// NewOCRWorker creates a new OCRWorker. searchService and embedder index a
+// document's extracted text into the search index once OCR completes, so
+// document content becomes searchable without a separate backfill step.
 func NewOCRWorker(
 	documentRepo repositories.DocumentRepository,
 	documentService services.DocumentService,
 	ocrService ocr.OCRService,
+	searchService services.SearchService,
+	embedder ai.LLMClient,
 	interval time.Duration,
 ) *OCRWorker {
 	return &OCRWorker{
 		documentRepo:    documentRepo,
 		documentService: documentService,
 		ocrService:      ocrService,
+		searchService:   searchService,
+		embedder:        embedder,
 		interval:        interval,
 	}
 }
@@ -80,6 +89,25 @@ func (w *OCRWorker) processPendingDocuments(ctx context.Context) {
 			continue
 		}
 
+		w.indexDocument(ctx, doc.ID, doc.Name, text)
+
 		logger.GetLogger().Info("OCR completed", zap.String("document_id", doc.ID))
+	}
+}
+
+// indexDocument embeds and upserts a document's OCR text into the search
+// index. Failures are logged, not fatal — a document that fails to index can
+// still be retried on the next backfill run.
+func (w *OCRWorker) indexDocument(ctx context.Context, documentID, name, text string) {
+	content := name + "\n" + text
+
+	embedding, err := w.embedder.Embed(ctx, content)
+	if err != nil {
+		logger.GetLogger().Warn("Failed to embed document for search index", zap.String("document_id", documentID), zap.Error(err))
+		embedding = nil
+	}
+
+	if err := w.searchService.IndexContent(ctx, "document", documentID, content, embedding); err != nil {
+		logger.GetLogger().Warn("Failed to index document", zap.String("document_id", documentID), zap.Error(err))
 	}
 }

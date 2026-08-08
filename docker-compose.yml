@@ -1,0 +1,109 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: vakalat
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  migrate:
+    # The migration files are named 0001_x.up.sql / 0001_x.down.sql — that's
+    # golang-migrate's convention, not goose's (goose expects one file per
+    # version with inline "-- +goose Up"/"-- +goose Down" markers, and panics
+    # on "duplicate version" when given a separate .up/.down pair). Use the
+    # tool that actually matches the file format instead of converting 24 files.
+    image: migrate/migrate:v4.18.1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./database/migrations:/migrations
+    command:
+      - "-path=/migrations"
+      - "-database=postgres://postgres:postgres@postgres:5432/vakalat?sslmode=disable"
+      - "up"
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      APP_NAME: Vakalat
+      APP_ENV: production
+      APP_PORT: 8080
+      APP_DEBUG: "false"
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: vakalat
+      DB_SSL_MODE: disable
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_EXPIRATION_HOURS: 24
+      AI_BASE_URL: ${AI_BASE_URL:-http://host.docker.internal:11434/v1}
+      AI_MODEL: ${AI_MODEL:-llama3.1}
+    ports:
+      - "8080:8080"
+    volumes:
+      - api_storage:/root/storage
+    healthcheck:
+      # "localhost" resolves to ::1 first in this image and the server only
+      # binds IPv4, so wget got a spurious connection-refused against an
+      # otherwise-healthy app. Use 127.0.0.1 explicitly.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      # Server-only var (see apps/web/src/lib/api.ts) — "api" is the compose
+      # service name, resolvable on the docker network; "localhost" here
+      # would mean the web container itself, not the api container.
+      API_BASE_URL: ${API_BASE_URL:-http://api:8080/api}
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
+  redis_data:
+  api_storage:

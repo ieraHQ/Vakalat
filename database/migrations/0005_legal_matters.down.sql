@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS hearings;
+DROP TABLE IF EXISTS matter_parties;
+DROP TABLE IF EXISTS matters;

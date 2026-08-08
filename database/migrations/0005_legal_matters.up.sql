@@ -48,7 +48,9 @@ CREATE TABLE orders (
     title TEXT NOT NULL,
     description TEXT,
     date TIMESTAMPTZ NOT NULL,
-    document_id UUID REFERENCES documents(id),
+    -- documents doesn't exist until 0006_documents.up.sql; the FK constraint
+    -- is added there once the table it references actually exists.
+    document_id UUID,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     deleted_at TIMESTAMPTZ

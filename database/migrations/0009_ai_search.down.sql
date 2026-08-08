@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS reports;
+DROP TABLE IF EXISTS search_index;
+DROP TABLE IF EXISTS ai_summaries;
+DROP TABLE IF EXISTS ai_sessions;

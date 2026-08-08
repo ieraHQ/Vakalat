@@ -1,8 +1,5 @@
-go 1.22
+go 1.25.0
 
 use (
 	./backend/api
-	./backend/worker
-	./packages/shared
-	./packages/sdk
 )

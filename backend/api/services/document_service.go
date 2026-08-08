@@ -19,6 +19,9 @@ type DocumentService interface {
 	ListDocumentsByMatter(ctx context.Context, matterID string, limit, offset int) ([]*repositories.Document, error)
 	UpdateDocumentOCRStatus(ctx context.Context, id string, status string) error
 	UpdateDocumentOCRText(ctx context.Context, id string, text string) error
+	CreateDocumentVersion(ctx context.Context, documentID string, file *multipart.FileHeader) (*repositories.DocumentVersion, error)
+	ListDocumentVersions(ctx context.Context, documentID string) ([]*repositories.DocumentVersion, error)
+	GetDocumentVersion(ctx context.Context, versionID string) (*repositories.DocumentVersion, error)
 }
 
 // documentService implements DocumentService.
@@ -49,7 +52,7 @@ func (s *documentService) CreateDocument(ctx context.Context, matterID string, f
 		MimeType:  file.Header.Get("Content-Type"),
 		Size:      file.Size,
 		OCRStatus: "pending",
-		CreatedAt: time.Now().Format(time.RFC3339),
+		CreatedAt: time.Now(),
 	}
 
 	if err := s.documentRepo.Create(ctx, document); err != nil {
@@ -96,4 +99,48 @@ func (s *documentService) UpdateDocumentOCRStatus(ctx context.Context, id string
 // UpdateDocumentOCRText updates the OCR text of a document.
 func (s *documentService) UpdateDocumentOCRText(ctx context.Context, id string, text string) error {
 	return s.documentRepo.UpdateOCRText(ctx, id, text)
+}
+
+// CreateDocumentVersion creates a new version of a document.
+func (s *documentService) CreateDocumentVersion(ctx context.Context, documentID string, file *multipart.FileHeader) (*repositories.DocumentVersion, error) {
+	// Get the latest version
+	versions, err := s.documentRepo.ListVersions(ctx, documentID)
+	if err != nil {
+		return nil, err
+	}
+
+	latestVersion := 0
+	if len(versions) > 0 {
+		latestVersion = versions[0].Version
+	}
+
+	// Upload new version
+	versionPath, err := s.storage.UploadFile(ctx, file, documentID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create version record
+	version := &repositories.DocumentVersion{
+		ID:        uuid.New().String(),
+		DocumentID: documentID,
+		Version:    latestVersion + 1,
+		Path:      versionPath,
+	}
+
+	if err := s.documentRepo.CreateVersion(ctx, version); err != nil {
+		return nil, err
+	}
+
+	return version, nil
+}
+
+// ListDocumentVersions retrieves a list of versions for a document.
+func (s *documentService) ListDocumentVersions(ctx context.Context, documentID string) ([]*repositories.DocumentVersion, error) {
+	return s.documentRepo.ListVersions(ctx, documentID)
+}
+
+// GetDocumentVersion retrieves a specific version of a document.
+func (s *documentService) GetDocumentVersion(ctx context.Context, versionID string) (*repositories.DocumentVersion, error) {
+	return s.documentRepo.GetVersion(ctx, versionID)
 }

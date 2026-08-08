@@ -1,0 +1,54 @@
+```mermaid
+%% System Architecture Diagram
+%% High-level overview of Vakalat's architecture, including clients, backend, database, and AI/OCR services.
+flowchart TD
+    subgraph Clients
+        A[Web App
+Next.js] -->|REST/WebSocket| B[Backend
+Go (Fiber/Gin)]
+        C[Desktop App
+Tauri] -->|REST/WebSocket| B
+        D[Mobile App
+Flutter] -->|REST/WebSocket| B
+    end
+
+    subgraph Backend
+        B -->|Authentication| E[JWT + RBAC]
+        B -->|Business Logic| F[Services
+User, Matter, Document]
+        B -->|Real-Time Updates| G[WebSocket]
+    end
+
+    subgraph Database
+        B -->|Data Persistence| H[PostgreSQL 17
+pgvector, pg_trgm]
+        H -->|Search| I[Full-Text + Semantic Search]
+    end
+
+    subgraph AI/OCR
+        B -->|Document Processing| J[OCR Service
+OCRmyPDF, PaddleOCR]
+        B -->|AI Tasks| K[Local LLM
+Ollama, LM Studio]
+        J -->|Text Extraction| H
+        K -->|Summarization| H
+    end
+
+    subgraph Storage
+        B -->|File Storage| L[Local Storage
+/storage/documents]
+    end
+
+    %% Styling
+    classDef client fill:#f9f7f3,stroke:#333,stroke-width:1px;
+    classDef backend fill:#e6f3ff,stroke:#333,stroke-width:1px;
+    classDef database fill:#e6ffe6,stroke:#333,stroke-width:1px;
+    classDef ai fill:#fff0e6,stroke:#333,stroke-width:1px;
+    classDef storage fill:#f0f0f0,stroke:#333,stroke-width:1px;
+
+    class A,C,D client;
+    class B,E,F,G backend;
+    class H,I database;
+    class J,K ai;
+    class L storage;
+```

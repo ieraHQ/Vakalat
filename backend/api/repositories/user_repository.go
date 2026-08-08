@@ -2,6 +2,8 @@ package repositories
 
 import (
 	"context"
+	"time"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -12,18 +14,21 @@ type UserRepository interface {
 	FindByEmail(ctx context.Context, email string) (*User, error)
 	Update(ctx context.Context, user *User) error
 	Delete(ctx context.Context, id string) error
+	UpdatePasswordHash(ctx context.Context, id, passwordHash string) error
+	UpdateMFASecret(ctx context.Context, id, mfaSecret string) error
+	GetMFASecret(ctx context.Context, id string) (string, error)
 }
 
 // User represents a user in the system.
 type User struct {
 	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Email        string `json:"email"`
-	PasswordHash string `json:"password_hash"`
-	RoleID       string `json:"role_id"`
-	IsActive     bool   `json:"is_active"`
-	CreatedAt    string `json:"created_at"`
-	UpdatedAt    string `json:"updated_at"`
+	Name         string `json:"name" validate:"required"`
+	Email        string `json:"email" validate:"required,email"`
+	PasswordHash string `json:"-"`
+	RoleID       string `json:"role_id" validate:"required,uuid"`
+	IsActive     bool      `json:"is_active"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // userRepository implements UserRepository.
@@ -90,4 +95,26 @@ func (r *userRepository) Delete(ctx context.Context, id string) error {
 	query := `UPDATE users SET deleted_at = NOW() WHERE id = $1`
 	_, err := r.db.Exec(ctx, query, id)
 	return err
+}
+
+// UpdatePasswordHash updates only a user's password hash.
+func (r *userRepository) UpdatePasswordHash(ctx context.Context, id, passwordHash string) error {
+	query := `UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`
+	_, err := r.db.Exec(ctx, query, passwordHash, id)
+	return err
+}
+
+// UpdateMFASecret stores a user's TOTP secret.
+func (r *userRepository) UpdateMFASecret(ctx context.Context, id, mfaSecret string) error {
+	query := `UPDATE users SET mfa_secret = $1, updated_at = NOW() WHERE id = $2`
+	_, err := r.db.Exec(ctx, query, mfaSecret, id)
+	return err
+}
+
+// GetMFASecret retrieves a user's TOTP secret.
+func (r *userRepository) GetMFASecret(ctx context.Context, id string) (string, error) {
+	query := `SELECT COALESCE(mfa_secret, '') FROM users WHERE id = $1`
+	var secret string
+	err := r.db.QueryRow(ctx, query, id).Scan(&secret)
+	return secret, err
 }

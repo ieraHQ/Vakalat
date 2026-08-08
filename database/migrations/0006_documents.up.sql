@@ -44,3 +44,8 @@ CREATE TABLE ocr_jobs (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- orders.document_id was added in 0005 before this table existed; add the
+-- FK constraint now that it can actually reference something.
+ALTER TABLE orders
+    ADD CONSTRAINT fk_orders_document FOREIGN KEY (document_id) REFERENCES documents(id);

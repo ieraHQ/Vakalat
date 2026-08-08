@@ -1,6 +1,4 @@
 # Go
-/backend/api/go.mod
-/backend/api/go.sum
 /backend/api/bin/
 /backend/api/.cache/
 

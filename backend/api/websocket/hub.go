@@ -2,9 +2,11 @@ package websocket
 
 import (
 	"sync"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/websocket/v2"
 	"github.com/ieraHQ/Vakalat/backend/api/logger"
+	"go.uber.org/zap"
 )
 
 // Client represents a WebSocket client.

@@ -2,6 +2,7 @@ package ocr
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -73,7 +74,7 @@ func (s *ocrService) extractTextWithOCRmyPDF(filePath string) (string, error) {
 	}
 
 	// Read the extracted text
-	ext, err := os.ReadFile(outputFile)
+	text, err := os.ReadFile(outputFile)
 	if err != nil {
 		return "", err
 	}

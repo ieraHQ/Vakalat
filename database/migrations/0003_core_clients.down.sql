@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS organizations;
+DROP TABLE IF EXISTS contacts;
+DROP TABLE IF EXISTS clients;

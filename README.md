@@ -1,122 +1,105 @@
 # Vakalat — Enterprise Legal Operating System
 
-**InkOS** is a production-grade Legal Case Management Platform designed to replace existing legal practice management software. Built for law firms, it supports local-first, offline-first, and cross-platform deployment with enterprise-grade security, performance, and scalability.
+**InkOS** is a Legal Case Management Platform for law firms, built local-first and offline-first with a Clean Architecture Go backend and a Next.js frontend. It's under active development — see [Known Limitations](#known-limitations) below for an honest read on what's implemented versus planned.
 
 ## Core Principles
 - **Local-first**: Runs locally with support for multiple users over LAN/VPN.
-- **Offline-first**: Full functionality without an internet connection.
+- **Offline-first**: Full functionality without an internet connection (planned — not yet implemented on the frontend).
 - **Fast**: Optimized for performance with sub-300ms page loads.
-- **Secure**: AES-256 encryption, audit logs, and zero-trust architecture.
-- **Cross-platform**: Web, desktop (Tauri), and mobile (Flutter).
+- **Secure**: Argon2id password hashing, TOTP MFA, RBAC backed by real roles/permissions, per-user rate limiting on AI endpoints.
+- **Cross-platform**: Web today; desktop (Tauri) and mobile (Flutter) planned.
 - **Modular**: Clean Architecture with repository pattern, dependency injection, and service layers.
+
+## Quickstart
+
+```bash
+git clone <this repo>
+cd Vakalat
+cp .env.example .env   # adjust JWT_SECRET etc. before anything but local use
+docker compose up -d --build
+```
+
+Then:
+- Frontend: http://localhost:3000
+- Backend health check: http://localhost:8080/healthz
+- Seed the database with sample accounts (the `migrate` service only runs schema migrations, not seed data):
+  ```bash
+  docker exec -i vakalat-postgres-1 psql -U postgres -d vakalat < database/seeds/seed.sql
+  ```
+- Log in at http://localhost:3000/login with `admin@vakalat.com` / `ChangeMe123!` (dev-only seeded account — rotate before any non-local use).
 
 ## Technology Stack
 ### Backend
-- **Go** (Fiber/Gin)
+- **Go** (Fiber)
 - **PostgreSQL 17** (pgvector, pg_trgm, uuid-ossp)
 - **Redis** (caching, sessions, queues)
+- **golang-migrate** for schema migrations
 
 ### Frontend
-- **Next.js** (React, TypeScript, TailwindCSS)
-- **shadcn/ui** (UI components)
-- **TanStack Query** (data fetching)
-- **React Hook Form + Zod** (validation)
+- **Next.js 16** (App Router, React 19, TypeScript, TailwindCSS)
+- Server Components + Server Actions for data fetching and mutations (no client-side data-fetching library wired up yet, though TanStack Query and react-hook-form are available as dependencies)
 
-### Desktop
-- **Tauri** (macOS, Windows, Linux)
-
-### Mobile
-- **Flutter** (Android, iOS, iPad)
+### Desktop / Mobile
+- **Tauri** (macOS, Windows, Linux) and **Flutter** (Android, iOS, iPad) — planned, not started.
 
 ### AI
-- **Local LLM** (LM Studio, Ollama, OpenAI-compatible endpoints)
+- **Local LLM** (LM Studio, Ollama, or any OpenAI-compatible endpoint) for summarization, Q&A, and drafting
+- Embedding generation wired into the same client, feeding hybrid search
 - **OCR** (OCRmyPDF, PaddleOCR, Tesseract)
 
 ### Search
-- **PostgreSQL Full Text Search** + **pgvector** (semantic search)
+- **PostgreSQL Full-Text Search** + **pgvector** (semantic search), blended into a single ranked result set
 
 ## Modules
 - Authentication, Users, Roles, Permissions
-- Clients, Matters, Hearings, Calendar, Tasks
-- Documents, Evidence, Orders, Billing, Reports
-- AI Assistant, OCR, Search, Notifications
+- Clients, Matters, Hearings, Orders (timeline)
+- Documents (upload, versioning, OCR)
+- AI Assistant, Hybrid Search
+- Billing, Tasks, Calendar, Notifications — schema exists, no backend/frontend yet
 
 ## Milestones
 
 ### Phase 1 – Foundation & Architecture (✅ Complete)
-- **Monorepo Structure**: Finalized directory layout for `/apps`, `/backend`, `/packages`, `/database`, and `/docs`.
-- **Makefile**: Added common tasks (`make build`, `make test`, `make lint`).
-- **Go Workspace**: Configured `go.work` for multi-module development and `golangci-lint` for linting.
-- **Next.js**: Configured `eslint`, `prettier`, and `typescript` for strict mode.
-- **Go Backend**: Added `viper` for environment variables and `app.env` for configuration.
+Monorepo layout, Go workspace, Next.js tooling, structured config.
 
 ### Phase 2 – Database (✅ Complete)
-- **PostgreSQL Extensions**: Enabled `pgvector`, `pg_trgm`, and `uuid-ossp`.
-- **Schema Design**: Designed 60+ tables for users, clients, matters, documents, billing, and more.
-  - **Users & Authentication**: `users`, `roles`, `permissions`, `sessions`.
-  - **Clients & Contacts**: `clients`, `contacts`, `organizations`.
-  - **Legal Entities**: `courts`, `judges`, `advocates`, `matters`, `hearings`, `orders`.
-  - **Documents & OCR**: `documents`, `document_versions`, `embeddings`, `ocr_jobs`.
-  - **Tasks & Calendar**: `tasks`, `calendar_events`, `reminders`.
-  - **Billing & Expenses**: `invoices`, `invoice_items`, `expenses`, `payments`.
-  - **AI & Search**: `ai_sessions`, `ai_summaries`, `search_index`.
-  - **Audit & Compliance**: `audit_logs`, `backup_logs`.
-- **Indexes**: Added indexes for performance-critical columns (e.g., `matter_id`, `client_id`).
-- **Migrations**: Added `goose` migration system and SQL migrations for all tables.
-- **Seed Data**: Added sample data for testing (roles, users, clients).
+60+ table schema across users/auth, clients, legal entities, documents/OCR, tasks, billing, AI/search, and audit logging. Every migration has a matching down-migration (`database/migrations/*.down.sql`), applied with `golang-migrate`.
 
 ### Phase 3 – Backend Framework (✅ Complete)
-- **Logger**: Configured structured logging with Zap.
-- **Database**: Set up PostgreSQL connection pooling with `pgxpool`.
-- **Repositories**: Implemented `UserRepository`, `ClientRepository`, `MatterRepository`, and `DocumentRepository`.
-- **Services**: Implemented `UserService`, `ClientService`, `MatterService`, and `DocumentService`.
-- **Middleware**: Added authentication, RBAC, and request logging middleware.
-- **WebSocket**: Set up real-time updates for hearings, tasks, and notifications.
-- **API Endpoints**: Integrated services with Fiber routes for users, clients, matters, and documents.
+Repository/service/handler layers, Zap logging, pgxpool connection pooling, JWT + RBAC middleware, WebSocket hub.
 
 ### Phase 4 – Authentication & RBAC (✅ Complete)
-- **JWT Authentication**: Secure API access with JWT tokens.
-- **Refresh Tokens**: Support long-lived sessions.
-- **Password Hashing**: Use Argon2id for secure password storage.
-- **Role-Based Permissions**: Fine-grained access control for users and roles.
-- **Session Management**: Password reset and MFA readiness.
+- Argon2id password hashing with a random per-password salt.
+- JWT access + refresh tokens.
+- RBAC backed by real `roles`/`permissions`/`role_permissions` tables (not hardcoded checks).
+- Password reset via hashed, expiring, single-use tokens.
+- TOTP-based MFA (`/api/auth/mfa/enable`, `/api/auth/mfa/verify`) — not yet enforced at login time.
 
-### Phase 5 – Document Engine (✅ In Progress)
-- **File Upload**: Let lawyers upload PDFs, Word docs, and other files.
-- **Local Storage**: Store files in `/storage/documents`.
-- **OCR (Robot’s Eyes)**: Read text inside documents (English + Hindi) using OCRmyPDF, PaddleOCR, and Tesseract.
-- **Background Worker**: Process OCR jobs in the background.
-- **Next Steps**:
-  - Add document versioning (like saving different drafts).
-  - Add digital signatures to verify documents.
+### Phase 5 – Document Engine (✅ Complete)
+Upload, local storage, OCR background worker (English + Hindi via Tesseract/PaddleOCR/OCRmyPDF), and document versioning.
 
-### Phase 3 – Backend Framework
-- Configure logger, database, repositories, and services.
-- Implement RBAC and middleware.
+### Phase 6 – Matter Engine (✅ Complete)
+Hearings and orders scoped to a matter, a merged chronological timeline endpoint, and matter/client browse + detail pages in the Next.js app.
 
-### Phase 4 – Authentication
-- JWT + refresh tokens.
-- Session management and password reset.
+### Phase 7 – Search (✅ Complete)
+Hybrid full-text + pgvector search (`GET /api/search?q=...`), gated by a `manage_search` permission. No search UI yet — API only.
 
-### Phase 5 – Document Engine
-- Upload, storage, metadata, and versioning.
-- OCR queue and digital signatures.
+### Phase 8 – AI Workspace (✅ Complete)
+Provider-agnostic LLM client (OpenAI-compatible `/chat/completions` + `/embeddings`) powering summarization, Q&A, and drafting endpoints, plus the embedding pipeline for search. Rate-limited (20 req/min/user) and gated by a `manage_ai` permission. `cmd/backfill-embeddings` indexes pre-existing rows.
 
-### Phase 6 – Matter Engine
-- API endpoints for matters, hearings, and timeline.
-- Frontend UI for matter screen.
+### Phase 9 – Deployment (✅ Complete)
+`docker-compose.yml` wires Postgres (pgvector), Redis, a one-shot `golang-migrate` migration runner, the Go API, and the Next.js web app, with a real `/healthz`-based healthcheck. No TLS/ingress layer yet — see limitations.
 
-### Phase 7 – Search
-- PostgreSQL full-text search + pgvector.
-- Hybrid search (keyword + semantic).
+## Known Limitations
 
-### Phase 8 – AI Workspace
-- Local LLM integration (Ollama/LM Studio).
-- Summarization, drafting, and research.
+This is a working, internally-consistent app (login → RBAC → data → search → AI all function end to end, verified against a live stack), but it is **not** production-ready for real users yet:
 
-### Phase 9 – Deployment
-- Docker and native deployment.
-- Cloud and high availability.
+- **No matters/clients create-forms in the UI** — browsing works, creating currently requires calling the API directly.
+- **No outbound email/SMS provider** — password reset tokens are written to the server log, not emailed.
+- **MFA isn't enforced at login** — the enable/verify endpoints work standalone but aren't yet wired into the login flow as a second step.
+- **No TLS/ingress** — `docker-compose.yml` serves plain HTTP; `COOKIE_SECURE` must stay `false` until that changes, or session cookies will be silently dropped by the browser.
+- **Test coverage is a start, not exhaustive** — unit tests cover auth/RBAC/validation; no integration tests against a real Postgres yet.
+- **No multi-tenancy, HA, or observability** beyond structured stdout logging.
 
 ## Documentation
 - [Architecture](./docs/architecture.md)

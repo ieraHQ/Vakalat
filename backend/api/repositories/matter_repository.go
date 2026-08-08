@@ -2,6 +2,8 @@ package repositories
 
 import (
 	"context"
+	"time"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -13,25 +15,29 @@ type MatterRepository interface {
 	Delete(ctx context.Context, id string) error
 	ListByClient(ctx context.Context, clientID string, limit, offset int) ([]*Matter, error)
 	ListByAdvocate(ctx context.Context, advocateID string, limit, offset int) ([]*Matter, error)
+	ListAll(ctx context.Context, limit, offset int) ([]*Matter, error)
 }
 
 // Matter represents a legal matter in the system.
+// CourtID, JudgeID, and AdvocateID are optional foreign keys (nullable UUID
+// columns) — *string, not string: an empty Go string isn't a valid UUID for
+// Postgres to insert, and a NULL value can't scan into a non-pointer string.
 type Matter struct {
-	ID              string `json:"id"`
-	Title           string `json:"title"`
-	Description     string `json:"description"`
-	ClientID        string `json:"client_id"`
-	CourtID         string `json:"court_id"`
-	JudgeID         string `json:"judge_id"`
-	AdvocateID      string `json:"advocate_id"`
-	CaseNumber      string `json:"case_number"`
+	ID              string  `json:"id"`
+	Title           string  `json:"title" validate:"required"`
+	Description     string  `json:"description"`
+	ClientID        string  `json:"client_id" validate:"required,uuid"`
+	CourtID         *string `json:"court_id"`
+	JudgeID         *string `json:"judge_id"`
+	AdvocateID      *string `json:"advocate_id"`
+	CaseNumber      string  `json:"case_number"`
 	CaseType        string `json:"case_type"`
 	Stage           string `json:"stage"`
 	Status          string `json:"status"`
-	Priority        string `json:"priority"`
-	LimitationDate  string `json:"limitation_date"`
-	CreatedAt       string `json:"created_at"`
-	UpdatedAt       string `json:"updated_at"`
+	Priority        string     `json:"priority" validate:"omitempty,oneof=low medium high urgent"`
+	LimitationDate  *time.Time `json:"limitation_date"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 // matterRepository implements MatterRepository.
@@ -90,6 +96,27 @@ func (r *matterRepository) Delete(ctx context.Context, id string) error {
 func (r *matterRepository) ListByClient(ctx context.Context, clientID string, limit, offset int) ([]*Matter, error) {
 	query := `SELECT id, title, description, client_id, court_id, judge_id, advocate_id, case_number, case_type, stage, status, priority, limitation_date, created_at, updated_at FROM matters WHERE client_id = $1 AND deleted_at IS NULL LIMIT $2 OFFSET $3`
 	rows, err := r.db.Query(ctx, query, clientID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var matters []*Matter
+	for rows.Next() {
+		var matter Matter
+		if err := rows.Scan(&matter.ID, &matter.Title, &matter.Description, &matter.ClientID, &matter.CourtID, &matter.JudgeID, &matter.AdvocateID, &matter.CaseNumber, &matter.CaseType, &matter.Stage, &matter.Status, &matter.Priority, &matter.LimitationDate, &matter.CreatedAt, &matter.UpdatedAt); err != nil {
+			return nil, err
+		}
+		matters = append(matters, &matter)
+	}
+
+	return matters, nil
+}
+
+// ListAll retrieves matters with pagination, regardless of client/advocate.
+func (r *matterRepository) ListAll(ctx context.Context, limit, offset int) ([]*Matter, error) {
+	query := `SELECT id, title, description, client_id, court_id, judge_id, advocate_id, case_number, case_type, stage, status, priority, limitation_date, created_at, updated_at FROM matters WHERE deleted_at IS NULL ORDER BY created_at LIMIT $1 OFFSET $2`
+	rows, err := r.db.Query(ctx, query, limit, offset)
 	if err != nil {
 		return nil, err
 	}
